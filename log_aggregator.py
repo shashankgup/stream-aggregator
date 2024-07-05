@@ -42,7 +42,8 @@ def socket_reader(port: int, rate_var: str, lock: threading.Lock):
             json_data = json.loads(msg)
             # print(f"type: {type(json_data)}, JSON data: {json_data}")
 
-            if rate_var not in json_data:
+            if (rate_var not in json_data or 'video_player' not in json_data or 
+                    'utc_minute' not in json_data):
                 # This is an erroneous message in the stream. Skipping.
                 continue
 
