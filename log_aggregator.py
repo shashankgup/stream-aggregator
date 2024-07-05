@@ -83,14 +83,14 @@ def log_aggregator():
         prog='Log Stream Aggregator',
         description='Reads 2 streams of data, aggregates them and '
         'writes the combined logs to CLI')
-    parser.add_argument('-pA', '--portA', required=True, type=int,
+    parser.add_argument('-a', '--portA', required=True, type=int,
                         help='Port of stream A where data is being published')
-    parser.add_argument('-pB', '--portB', required=True, type=int,
+    parser.add_argument('-b', '--portB', required=True, type=int,
                         help='Port of stream B where data is being published')
     args = parser.parse_args()
 
-    portA = args['portA']
-    portB = args['portB']
+    portA = args.portA
+    portB = args.portB
     data_lock = threading.Lock()
 
 
@@ -109,7 +109,5 @@ def log_aggregator():
     write_combined_data(data_lock)
 
 
-
-
-if __name__ == "main":
+if __name__ == "__main__":
     log_aggregator()
