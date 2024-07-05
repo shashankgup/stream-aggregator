@@ -1,3 +1,4 @@
+
 import argparse
 import socket
 import threading
@@ -7,7 +8,7 @@ import time
 """
 Data is in the format:
 {
-  ("<UUID-X>", "1699520400") : {"bitrate": 3500, "framrate": 24},
+  (<video_player>, <utc_minute>) : {"bitrate": <bitrate>, "framerate": <framerate>},
     ....
 }
 """
@@ -39,6 +40,7 @@ def socket_reader(port: int, rate_var: str, lock: threading.Lock):
                 raise InterruptedError(f"Socket bound to port {port} ")
             # JSON here has all data in string format
             json_data = json.loads(msg)
+            # print(f"type: {type(json_data)}, JSON data: {json_data}")
 
             player = json_data['video_player']
             log_time = json_data['utc_minute']
@@ -47,9 +49,11 @@ def socket_reader(port: int, rate_var: str, lock: threading.Lock):
             # Lock is taken before the block and released at the end of the block.
             # Needed to prevent simultaneous read / write to same entry
             with lock:
+                # print(f"key: {k}")
                 if k not in LOCAL_STORE:
                     LOCAL_STORE[k] = {}
-            LOCAL_STORE[k][rate_var] = msg[rate_var]
+                LOCAL_STORE[k][rate_var] = json_data[rate_var]
+            # print(f"LOCAL_STORE: {LOCAL_STORE}")
     
     except Exception as err:
         print(f"Received Exception {err}, {type(err)}")
@@ -62,6 +66,7 @@ def write_combined_data(lock: threading.Lock):
 
         deletion_list = []
         for k, v in LOCAL_STORE.items():
+            # print(f"k: {k}, v: {v}")
             # Only if both streams have been processed, should we proceed.
             if BIT_RATE in v and FRAME_RATE in v:
                 # Since we can't delete while processing, we keep a separate list for this.
@@ -103,8 +108,8 @@ def log_aggregator():
                                       name='socketB',
                                       daemon=True)
     
-    socketA_reader.run()
-    socketB_reader.run()
+    socketA_reader.start()
+    socketB_reader.start()
 
     write_combined_data(data_lock)
 
