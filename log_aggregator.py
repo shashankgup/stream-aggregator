@@ -35,12 +35,11 @@ def socket_reader(port: int, rate_var: str, lock: threading.Lock):
         # Stream is infinite
         while True:
             # Single entry read from socket
-            msg = sock.recv(MAX_BYTES_READ) 
+            msg = sock.recv(MAX_BYTES_READ)
             if not msg:
                 raise InterruptedError(f"Socket bound to port {port} ")
             # JSON here has all data in string format
             json_data = json.loads(msg)
-            # print(f"type: {type(json_data)}, JSON data: {json_data}")
 
             if (rate_var not in json_data or 'video_player' not in json_data or 
                     'utc_minute' not in json_data):
@@ -54,38 +53,27 @@ def socket_reader(port: int, rate_var: str, lock: threading.Lock):
             # Lock is taken before the block and released at the end of the block.
             # Needed to prevent simultaneous read / write to same entry
             with lock:
-                # print(f"key: {k}")
                 if k not in LOCAL_STORE:
                     LOCAL_STORE[k] = {}
-                LOCAL_STORE[k][rate_var] = json_data[rate_var]
-            # print(f"LOCAL_STORE: {LOCAL_STORE}")
+                    LOCAL_STORE[k][rate_var] = json_data[rate_var]
+                else:
+                    v = LOCAL_STORE[k]
+                    player, log_time = k
+
+                    # Get other rate from LOCAL_STORE
+                    bitrate, framerate = v.get(BIT_RATE), json_data[rate_var]
+                    if rate_var == BIT_RATE:
+                        bitrate, framerate = json_data[rate_var], v[FRAME_RATE]
+                    
+                    print(f"video_player {player} is at bitrate {bitrate} and "
+                          f"framerate {framerate} at {log_time}")
+                    # This value isn't needed any longer and must be deleted.
+                    del LOCAL_STORE[k]
     
     except Exception as err:
         print(f"Received Exception {err}, {type(err)}")
     finally:
         print(f"Exiting reading stream on port {port}")
-
-
-def write_combined_data(lock: threading.Lock):
-    while True:
-
-        deletion_list = []
-        for k, v in LOCAL_STORE.items():
-            # print(f"k: {k}, v: {v}")
-            # Only if both streams have been processed, should we proceed.
-            if BIT_RATE in v and FRAME_RATE in v:
-                # Since we can't delete while processing, we keep a separate list for this.
-                deletion_list.append(k)
-                player, log_time = k
-                print(f"video_player {player} is at bitrate {v[BIT_RATE]} and framerate {v[FRAME_RATE]} at {log_time}")
-
-        # data lock is to be acquired since the data musn't be modifiable here.
-        with lock:
-            for d in deletion_list:
-                del LOCAL_STORE[d]
-        
-        # Since we already processed all data present in local store, we sleep for s small time.
-        time.sleep(SLEEP_BETWEEN_WRITE_IN_SEC)
 
 
 def log_aggregator():
@@ -116,7 +104,14 @@ def log_aggregator():
     socketA_reader.start()
     socketB_reader.start()
 
-    write_combined_data(data_lock)
+    
+    try:
+        # Wait for both the daemon's to end, which should never happen.
+        socketA_reader.join()
+        socketB_reader.join()
+    except KeyboardInterrupt:
+        print("Received termination from CLI. Exiting now.")
+
 
 
 if __name__ == "__main__":
