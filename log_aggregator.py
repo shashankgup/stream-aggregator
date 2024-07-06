@@ -50,25 +50,26 @@ def socket_reader(port: int, rate_var: str, lock: threading.Lock):
             log_time = json_data['utc_minute']
             k = (player, log_time)
 
-            # Lock is taken before the block and released at the end of the block.
-            # Needed to prevent simultaneous read / write to same entry
-            with lock:
-                if k not in LOCAL_STORE:
+            if k not in LOCAL_STORE:
+                # Lock is taken before the block and released at the end of the block.
+                # Lock needed to prevent simultaneous write to same entry
+                with lock:
                     LOCAL_STORE[k] = {}
                     LOCAL_STORE[k][rate_var] = json_data[rate_var]
-                else:
-                    v = LOCAL_STORE[k]
-                    player, log_time = k
+            else:
+                # Since other entry already exists in LOCAL_STORE, lock isn't needed.
+                v = LOCAL_STORE[k]
+                player, log_time = k
 
-                    # Get other rate from LOCAL_STORE
-                    bitrate, framerate = v.get(BIT_RATE), json_data[rate_var]
-                    if rate_var == BIT_RATE:
-                        bitrate, framerate = json_data[rate_var], v[FRAME_RATE]
-                    
-                    print(f"video_player {player} is at bitrate {bitrate} and "
-                          f"framerate {framerate} at {log_time}")
-                    # This value isn't needed any longer and must be deleted.
-                    del LOCAL_STORE[k]
+                # Get other rate from LOCAL_STORE
+                bitrate, framerate = v.get(BIT_RATE), json_data[rate_var]
+                if rate_var == BIT_RATE:
+                    bitrate, framerate = json_data[rate_var], v[FRAME_RATE]
+                
+                print(f"video_player {player} is at bitrate {bitrate} and "
+                        f"framerate {framerate} at {log_time}")
+                # This value isn't needed any longer and must be deleted.
+                del LOCAL_STORE[k]
     
     except Exception as err:
         print(f"Received Exception {err}, {type(err)}")
