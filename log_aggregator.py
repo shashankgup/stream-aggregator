@@ -50,13 +50,20 @@ def socket_reader(port: int, rate_var: str, lock: threading.Lock):
             log_time = json_data['utc_minute']
             k = (player, log_time)
 
+            added = False
+
             if k not in LOCAL_STORE:
                 # Lock is taken before the block and released at the end of the block.
                 # Lock needed to prevent simultaneous write to same entry
                 with lock:
-                    LOCAL_STORE[k] = {}
-                    LOCAL_STORE[k][rate_var] = json_data[rate_var]
-            else:
+                    # Double check locking to prevent race condition
+                    if k not in LOCAL_STORE:
+                        added = True
+                        LOCAL_STORE[k] = {}
+                        LOCAL_STORE[k][rate_var] = json_data[rate_var]
+
+            # k exists already
+            if not added:
                 # Since other entry already exists in LOCAL_STORE, lock isn't needed.
                 v = LOCAL_STORE[k]
                 player, log_time = k
